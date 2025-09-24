@@ -21,10 +21,9 @@ export function Analytics({ entries }: AnalyticsProps) {
   const completedEntries = entries.filter(e => e.status === 'completed').length;
 
   const totalRevenue = entries
-    .filter(e => e.billing)
-    .reduce((sum, entry) => sum + (entry.billing || 0), 0);
+    .reduce((sum, entry) => sum + (entry.billing || 0) + (entry.additionalBilling || 0), 0);
 
-  const averageBilling = totalRevenue / entries.filter(e => e.billing).length || 0;
+  const averageBilling = entries.length > 0 ? totalRevenue / entries.length : 0;
 
   // Combined revenue data from both locations
   const combinedRevenue = totalRevenue + totalDailyAverage;
