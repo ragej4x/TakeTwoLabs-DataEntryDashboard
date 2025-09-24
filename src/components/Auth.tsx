@@ -99,7 +99,7 @@ export function Auth({ onLogin }: AuthProps) {
       });
       localStorage.setItem('tt_token', res.access_token);
       setConfirmOpen(false);
-      toast.success('Registration successful! Redirecting...');
+      toast.success('Success! Waiting for admin approval.');
       
       // Show loading overlay during redirect
       setIsRedirecting(true);
