@@ -1,62 +1,114 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Textarea } from './ui/textarea';
 import { Checkbox } from './ui/checkbox';
 import { toast } from 'sonner@2.0.3';
 import type { Entry } from '../App';
+import { uploadWaiver } from '../api';
+import { PDFViewer } from './PDFViewer';
 
 interface NewEntryProps {
   onAddEntry: (entry: Omit<Entry, 'id' | 'createdAt' | 'updatedAt'>) => void;
 }
+
+interface ServiceOption {
+  id: string;
+  name: string;
+  price: number;
+  isVariable?: boolean; // For services that start at a price
+}
+
+const SERVICE_OPTIONS: ServiceOption[] = [
+  { id: 'basic-clean', name: 'Basic Clean', price: 399 },
+  { id: 'deep-clean', name: 'Deep Clean', price: 499 },
+  { id: 'unyellow', name: 'Unyellow', price: 600, isVariable: true },
+  { id: 'restoration', name: 'Restoration', price: 600, isVariable: true },
+  { id: 'customization', name: 'Customization', price: 600, isVariable: true },
+];
 
 export function NewEntry({ onAddEntry }: NewEntryProps) {
   const [formData, setFormData] = useState({
     customerName: '',
     customerPhone: '',
     customerEmail: '',
+    deliveryAddress: '',
     itemDescription: '',
     shoeCondition: '',
-    shoeService: '',
     waiverSigned: false,
     waiverPdf: null as File | null,
     beforePhotos: [] as string[],
     assignedTo: '',
   });
 
-  const [showShoeService, setShowShoeService] = useState(false);
-  const [showWaiverSign, setShowWaiverSign] = useState(false);
+  const [selectedServices, setSelectedServices] = useState<{[key: string]: boolean}>({});
+  const [servicePrices, setServicePrices] = useState<{[key: string]: number}>({});
+  const [totalAmount, setTotalAmount] = useState(0);
+
+  // Initialize service prices with default values
+  useEffect(() => {
+    const initialPrices: {[key: string]: number} = {};
+    SERVICE_OPTIONS.forEach(service => {
+      initialPrices[service.id] = service.price;
+    });
+    setServicePrices(initialPrices);
+  }, []);
+
+  // Calculate total amount whenever services or prices change
+  useEffect(() => {
+    const total = Object.entries(selectedServices).reduce((sum, [serviceId, isSelected]) => {
+      if (isSelected) {
+        return sum + (servicePrices[serviceId] || 0);
+      }
+      return sum;
+    }, 0);
+    setTotalAmount(total);
+  }, [selectedServices, servicePrices]);
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleShoeConditionChange = (value: string) => {
-    handleInputChange('shoeCondition', value);
-    if (value.trim()) {
-      setShowShoeService(true);
-    } else {
-      setShowShoeService(false);
-      setShowWaiverSign(false);
-    }
+  const handleServiceToggle = (serviceId: string) => {
+    setSelectedServices(prev => ({
+      ...prev,
+      [serviceId]: !prev[serviceId]
+    }));
   };
 
-  const handleShoeServiceChange = (value: string) => {
-    handleInputChange('shoeService', value);
-    setShowWaiverSign(true);
+  const handleServicePriceChange = (serviceId: string, price: number) => {
+    setServicePrices(prev => ({
+      ...prev,
+      [serviceId]: price
+    }));
   };
 
-  const handleWaiverUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTotalAmountChange = (amount: number) => {
+    setTotalAmount(amount);
+  };
+
+  const handleWaiverUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type === 'application/pdf') {
-      setFormData(prev => ({ ...prev, waiverPdf: file, waiverSigned: true }));
-      toast.success('Signed waiver PDF uploaded successfully');
+      try {
+        // store locally for UI, and upload to backend to get public URL
+        setFormData(prev => ({ ...prev, waiverPdf: file, waiverSigned: true }));
+        const { url } = await uploadWaiver(file);
+        setFormData(prev => ({ ...prev, waiverPdf: file, waiverSigned: true, waiverUrl: url as any }));
+        toast.success('Signed waiver PDF uploaded successfully');
+      } catch (e) {
+        console.error(e);
+        toast.error('Failed to upload waiver');
+      }
     } else {
       toast.error('Please upload a PDF file');
     }
+  };
+
+  const removeWaiver = () => {
+    setFormData(prev => ({ ...prev, waiverPdf: null, waiverSigned: false }));
+    toast.success('Waiver removed');
   };
 
   const handleBeforePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,18 +137,59 @@ export function NewEntry({ onAddEntry }: NewEntryProps) {
     toast.success('Photo removed');
   };
 
+  const validateForm = () => {
+    const errors: string[] = [];
+
+    // Phone number is mandatory
+    if (!formData.customerPhone.trim()) {
+      errors.push('Phone number is required');
+    }
+
+    // Delivery address is mandatory
+    if (!formData.deliveryAddress.trim()) {
+      errors.push('Delivery address is required');
+    }
+
+    // At least one service must be selected
+    const hasSelectedService = Object.values(selectedServices).some(selected => selected);
+    if (!hasSelectedService) {
+      errors.push('At least one service must be selected');
+    }
+
+    // Total amount must be greater than 0
+    if (totalAmount <= 0) {
+      errors.push('Total amount must be greater than 0');
+    }
+
+    return errors;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.customerName || !formData.itemDescription) {
-      toast.error('Please fill in required fields');
+    const validationErrors = validateForm();
+    if (validationErrors.length > 0) {
+      validationErrors.forEach(error => toast.error(error));
       return;
     }
 
+    // Build service details string
+    const selectedServiceNames = Object.entries(selectedServices)
+      .filter(([_, isSelected]) => isSelected)
+      .map(([serviceId, _]) => {
+        const service = SERVICE_OPTIONS.find(s => s.id === serviceId);
+        const price = servicePrices[serviceId];
+        return `${service?.name} - ₱${price}`;
+      })
+      .join(', ');
+
     onAddEntry({
       ...formData,
+      shoeService: selectedServiceNames,
       afterPhotos: [],
       status: 'pending',
+      billing: totalAmount,
+      deliveryAddress: formData.deliveryAddress, // Ensure delivery address is included
     });
 
     // Reset form
@@ -104,16 +197,16 @@ export function NewEntry({ onAddEntry }: NewEntryProps) {
       customerName: '',
       customerPhone: '',
       customerEmail: '',
+      deliveryAddress: '',
       itemDescription: '',
       shoeCondition: '',
-      shoeService: '',
       waiverSigned: false,
       waiverPdf: null,
       beforePhotos: [],
       assignedTo: '',
     });
-    setShowShoeService(false);
-    setShowWaiverSign(false);
+    setSelectedServices({});
+    setTotalAmount(0);
 
     toast.success('New entry created successfully');
   };
@@ -127,25 +220,26 @@ export function NewEntry({ onAddEntry }: NewEntryProps) {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Customer Details */}
           <div className="space-y-4">
-            <h3 className="font-medium">Customer Details</h3>
+            <h3>Customer Details</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="customerName">Customer Name *</Label>
+                <Label htmlFor="customerName">Customer Name</Label>
                 <Input
                   id="customerName"
                   value={formData.customerName}
                   onChange={(e) => handleInputChange('customerName', e.target.value)}
-                  required
                 />
               </div>
               
               <div>
-                <Label htmlFor="customerPhone">Phone Number</Label>
+                <Label htmlFor="customerPhone">Phone Number *</Label>
                 <Input
                   id="customerPhone"
                   value={formData.customerPhone}
                   onChange={(e) => handleInputChange('customerPhone', e.target.value)}
+                  required
+                  className={!formData.customerPhone.trim() ? 'border-destructive' : ''}
                 />
               </div>
             </div>
@@ -159,73 +253,98 @@ export function NewEntry({ onAddEntry }: NewEntryProps) {
                 onChange={(e) => handleInputChange('customerEmail', e.target.value)}
               />
             </div>
+
+            <div>
+              <Label htmlFor="deliveryAddress">Delivery Address *</Label>
+              <Input
+                id="deliveryAddress"
+                value={formData.deliveryAddress}
+                onChange={(e) => handleInputChange('deliveryAddress', e.target.value)}
+                placeholder="Enter full delivery address"
+                required
+                className={!formData.deliveryAddress.trim() ? 'border-destructive' : ''}
+              />
+            </div>
+          </div>
+
+          {/* Shoe Service Options */}
+          <div className="space-y-4">
+            <h3>Shoe Service Options *</h3>
+            <div className="space-y-3">
+              {SERVICE_OPTIONS.map((service) => (
+                <div key={service.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id={service.id}
+                      checked={selectedServices[service.id] || false}
+                      onCheckedChange={() => handleServiceToggle(service.id)}
+                    />
+                    <Label htmlFor={service.id} className="cursor-pointer">
+                      {service.name} {service.isVariable && '(starts at)'}
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span>₱</span>
+                    {service.isVariable ? (
+                      <Input
+                        type="number"
+                        value={servicePrices[service.id] || service.price}
+                        onChange={(e) => handleServicePriceChange(service.id, parseInt(e.target.value) || service.price)}
+                        className="w-20 text-right"
+                        min={service.price}
+                        disabled={!selectedServices[service.id]}
+                      />
+                    ) : (
+                      <span className="w-20 text-right">{service.price}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Total Amount */}
+          <div className="p-4 bg-muted rounded-lg">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="totalAmount">Total Amount</Label>
+              <div className="flex items-center space-x-2">
+                <span>₱</span>
+                <Input
+                  id="totalAmount"
+                  type="number"
+                  value={totalAmount}
+                  onChange={(e) => handleTotalAmountChange(parseInt(e.target.value) || 0)}
+                  className="w-24 text-right"
+                  min="0"
+                />
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Auto-calculated based on selected services, but can be manually adjusted
+            </p>
           </div>
 
           {/* Item Description */}
           <div>
-            <Label htmlFor="itemDescription">Item Description *</Label>
-            <Textarea
+            <Label htmlFor="itemDescription">Item Description</Label>
+            <Input
               id="itemDescription"
               value={formData.itemDescription}
               onChange={(e) => handleInputChange('itemDescription', e.target.value)}
               placeholder="Describe the shoe/item details"
-              required
             />
           </div>
 
           {/* Shoe Condition */}
           <div>
             <Label htmlFor="shoeCondition">Shoe Condition</Label>
-            <Textarea
+            <Input
               id="shoeCondition"
               value={formData.shoeCondition}
-              onChange={(e) => handleShoeConditionChange(e.target.value)}
+              onChange={(e) => handleInputChange('shoeCondition', e.target.value)}
               placeholder="Describe the current condition of the shoe/item"
             />
           </div>
-
-          {/* Shoe Service Selection */}
-          {showShoeService && (
-            <div>
-              <Label>Shoe Service Selection</Label>
-              <Select value={formData.shoeService} onValueChange={handleShoeServiceChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select service type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="restoration">Restoration</SelectItem>
-                  <SelectItem value="deep-cleaning">Deep Cleaning</SelectItem>
-                  <SelectItem value="basic-cleaning">Basic Cleaning</SelectItem>
-                  <SelectItem value="reglue">Reglue Service</SelectItem>
-                  <SelectItem value="paint-touch-up">Paint Touch Up</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Customer Waiver */}
-          {showWaiverSign && !formData.waiverSigned && (
-            <div className="p-4 border border-border rounded-lg">
-              <h4 className="font-medium mb-2">Customer Waiver</h4>
-              <p className="text-sm text-muted-foreground mb-4">
-                Upload the signed customer waiver PDF document.
-              </p>
-              <Input
-                type="file"
-                accept=".pdf"
-                onChange={handleWaiverUpload}
-                className="cursor-pointer"
-              />
-            </div>
-          )}
-
-          {formData.waiverSigned && formData.waiverPdf && (
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="text-sm">
-                <span className="font-medium">Waiver uploaded:</span> {formData.waiverPdf.name}
-              </p>
-            </div>
-          )}
 
           {/* Before Photos Upload */}
           <div>
@@ -267,18 +386,58 @@ export function NewEntry({ onAddEntry }: NewEntryProps) {
             )}
           </div>
 
-          {/* Assigned To */}
-          {formData.waiverSigned && (
+          {/* Customer Waiver Upload */}
+          <div className="p-4 border border-border rounded-lg">
+            <h4 className="font-medium mb-3">Customer Waiver</h4>
             <div>
-              <Label htmlFor="assignedTo">Assigned To Cleaning Service Team</Label>
+              <Label htmlFor="waiverPdf">Upload Signed Waiver PDF</Label>
               <Input
-                id="assignedTo"
-                value={formData.assignedTo}
-                onChange={(e) => handleInputChange('assignedTo', e.target.value)}
-                placeholder="Enter team member or service team name"
+                id="waiverPdf"
+                type="file"
+                accept="application/pdf"
+                onChange={handleWaiverUpload}
+                className="cursor-pointer mt-2"
               />
+              <p className="text-sm text-muted-foreground mt-1">
+                Please upload the signed customer waiver as a PDF document.
+              </p>
             </div>
-          )}
+            
+            {formData.waiverPdf && (
+              <div className="mt-3 p-3 bg-muted rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-sm font-medium">Waiver uploaded:</p>
+                    <p className="text-sm text-muted-foreground">{formData.waiverPdf.name}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={removeWaiver}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                {formData.waiverUrl && (
+                  <div className="border rounded p-2">
+                    <PDFViewer url={formData.waiverUrl} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Assigned To */}
+          <div>
+            <Label htmlFor="assignedTo">Assigned To Cleaning Service Team</Label>
+            <Input
+              id="assignedTo"
+              value={formData.assignedTo}
+              onChange={(e) => handleInputChange('assignedTo', e.target.value)}
+              placeholder="Enter team member or service team name"
+            />
+          </div>
 
           <Button type="submit" className="w-full">
             Create Entry

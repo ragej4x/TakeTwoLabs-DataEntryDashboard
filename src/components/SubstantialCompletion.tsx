@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -28,7 +28,9 @@ export function SubstantialCompletion({ entries, onUpdateEntry }: SubstantialCom
       customerEmail: entry.customerEmail,
       itemDescription: entry.itemDescription,
       billing: entry.billing,
+      additionalBilling: entry.additionalBilling,
       deliveryOption: entry.deliveryOption,
+      deliveryAddress: entry.deliveryAddress,
       markedAs: entry.markedAs,
     });
     setDialogOpen(true);
@@ -99,7 +101,7 @@ export function SubstantialCompletion({ entries, onUpdateEntry }: SubstantialCom
                     <span className="font-medium">Email:</span> {entry.customerEmail || 'N/A'}
                   </div>
                   <div>
-                    <span className="font-medium">Billing:</span> ₱{entry.billing || 'N/A'}
+                    <span className="font-medium">Total:</span> ₱{((entry.billing || 0) + (entry.additionalBilling || 0))}
                   </div>
                   <div>
                     <span className="font-medium">Delivery:</span> {entry.deliveryOption || 'N/A'}
@@ -108,6 +110,7 @@ export function SubstantialCompletion({ entries, onUpdateEntry }: SubstantialCom
                     <span className="font-medium">Received by:</span> {entry.serviceDetails?.receivedBy ? entry.serviceDetails.receivedBy.charAt(0).toUpperCase() + entry.serviceDetails.receivedBy.slice(1) : 'N/A'}
                   </div>
                 </div>
+
 
                 <div className="flex gap-4">
                   {entry.beforePhotos && entry.beforePhotos.length > 0 && (
@@ -170,6 +173,9 @@ export function SubstantialCompletion({ entries, onUpdateEntry }: SubstantialCom
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Entry Details - {selectedEntry?.customerName}</DialogTitle>
+            <DialogDescription>
+              Edit customer information and billing details for this entry.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
@@ -210,16 +216,40 @@ export function SubstantialCompletion({ entries, onUpdateEntry }: SubstantialCom
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="editBilling">Billing (Peso)</Label>
-                <Input
-                  id="editBilling"
-                  type="number"
-                  value={editData.billing || ''}
-                  onChange={(e) => setEditData(prev => ({ ...prev, billing: parseFloat(e.target.value) }))}
-                />
+            {/* Billing Section */}
+            <div className="p-4 bg-muted rounded-lg space-y-3">
+              <h4 className="font-medium">Billing Details</h4>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="editServiceBilling">Service Bill (Peso)</Label>
+                  <Input
+                    id="editServiceBilling"
+                    type="number"
+                    value={editData.billing || ''}
+                    onChange={(e) => setEditData(prev => ({ ...prev, billing: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editAdditionalBilling">Additional Billing (Peso)</Label>
+                  <Input
+                    id="editAdditionalBilling"
+                    type="number"
+                    value={editData.additionalBilling || ''}
+                    onChange={(e) => setEditData(prev => ({ ...prev, additionalBilling: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
               </div>
+              
+              <div className="border-t pt-2">
+                <div className="flex justify-between items-center font-medium">
+                  <Label>Total Amount:</Label>
+                  <span>₱{((editData.billing || 0) + (editData.additionalBilling || 0))}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Delivery Option</Label>
                 <Select 
@@ -235,6 +265,17 @@ export function SubstantialCompletion({ entries, onUpdateEntry }: SubstantialCom
                   </SelectContent>
                 </Select>
               </div>
+              
+              {editData.deliveryOption === 'delivery' && (
+                <div>
+                  <Label htmlFor="editDeliveryAddress">Delivery Address</Label>
+                  <Input
+                    id="editDeliveryAddress"
+                    value={editData.deliveryAddress || ''}
+                    onChange={(e) => setEditData(prev => ({ ...prev, deliveryAddress: e.target.value }))}
+                  />
+                </div>
+              )}
             </div>
 
             <div>
@@ -266,6 +307,7 @@ export function SubstantialCompletion({ entries, onUpdateEntry }: SubstantialCom
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

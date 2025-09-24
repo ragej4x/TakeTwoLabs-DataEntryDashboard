@@ -28,8 +28,9 @@ export function TendDialog({ entry, onUpdateEntry, onClose }: TendDialogProps) {
   const [showReleaseForm, setShowReleaseForm] = useState(false);
   const [releaseData, setReleaseData] = useState({
     afterPhotos: [] as string[],
-    billing: '',
-    deliveryOption: '',
+    additionalBilling: entry.additionalBilling?.toString() || '',
+    deliveryOption: entry.deliveryOption || '',
+    deliveryAddress: entry.deliveryAddress || '',
   });
 
   const handleServiceDetailsChange = (field: string, value: string | boolean) => {
@@ -43,17 +44,31 @@ export function TendDialog({ entry, onUpdateEntry, onClose }: TendDialogProps) {
   };
 
   const checkIfCanRelease = () => {
-    const { isShoeClean, serviceType, needsReglue, needsPaint, qcPassed, basicCleaning } = serviceDetails;
+    const { isShoeClean, serviceType, qcPassed, basicCleaning, receivedBy } = serviceDetails;
+    
+    // Must have receivedBy filled
+    if (!receivedBy) {
+      return false;
+    }
+    
+    // Must have isShoeClean answered
+    if (!isShoeClean) {
+      return false;
+    }
     
     if (isShoeClean === 'yes') {
+      // If shoe is clean, just need QC to pass
       return qcPassed;
     } else if (isShoeClean === 'no') {
       if (basicCleaning === 'yes') {
+        // If basic cleaning is yes, just need QC to pass
         return qcPassed;
       } else if (basicCleaning === 'no') {
         // When basic cleaning is no, we need service type and QC to pass
-        // All additional services (reglue, paint) are optional
         return serviceType && qcPassed;
+      } else {
+        // basicCleaning not answered yet
+        return false;
       }
     }
     return false;
@@ -94,22 +109,62 @@ export function TendDialog({ entry, onUpdateEntry, onClose }: TendDialogProps) {
   };
 
   const handleFinalSubmit = () => {
-    if (releaseData.afterPhotos.length === 0 || !releaseData.billing || !releaseData.deliveryOption) {
-      toast.error('Please complete all release form fields including at least one after photo');
+    console.log('Final submit clicked'); // Debug log
+    
+    // Validate required fields
+    if (releaseData.afterPhotos.length === 0) {
+      toast.error('Please upload at least one after photo');
       return;
     }
 
-    onUpdateEntry({
-      serviceDetails,
+    if (!releaseData.deliveryOption) {
+      toast.error('Please select a delivery option');
+      return;
+    }
+
+    // Validate delivery address if delivery option is selected
+    if (releaseData.deliveryOption === 'delivery' && !releaseData.deliveryAddress.trim()) {
+      toast.error('Delivery address is required when delivery option is selected');
+      return;
+    }
+
+    // Create the updates object with all necessary data
+    const updates: Partial<Entry> = {
+      serviceDetails: {
+        ...serviceDetails,
+        isShoeClean: serviceDetails.isShoeClean,
+        serviceType: serviceDetails.serviceType,
+        needsReglue: serviceDetails.needsReglue,
+        needsPaint: serviceDetails.needsPaint,
+        qcPassed: serviceDetails.qcPassed,
+        basicCleaning: serviceDetails.basicCleaning,
+        receivedBy: serviceDetails.receivedBy,
+      },
       afterPhotos: releaseData.afterPhotos,
-      billing: parseFloat(releaseData.billing),
       deliveryOption: releaseData.deliveryOption as 'pickup' | 'delivery',
       status: 'substantial-completion',
-    });
+    };
 
+    // Add additional billing if provided
+    if (releaseData.additionalBilling.trim()) {
+      updates.additionalBilling = parseFloat(releaseData.additionalBilling) || 0;
+    }
+
+    // Update delivery address if delivery option is selected
+    if (releaseData.deliveryOption === 'delivery') {
+      updates.deliveryAddress = releaseData.deliveryAddress;
+    }
+
+    console.log('Submitting updates:', updates); // Debug log
+
+    onUpdateEntry(updates);
     toast.success('Entry moved to Substantial Completion');
     onClose();
   };
+
+  const canSubmit = releaseData.afterPhotos.length > 0 && 
+                   releaseData.deliveryOption && 
+                   (releaseData.deliveryOption === 'pickup' || releaseData.deliveryAddress.trim());
 
   return (
     <div className="space-y-6">
@@ -195,26 +250,40 @@ export function TendDialog({ entry, onUpdateEntry, onClose }: TendDialogProps) {
             </div>
           )}
 
-          {/* Additional Services */}
-          {(serviceDetails.serviceType || serviceDetails.basicCleaning === 'no') && (
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
+          {/* Additional Service Requirements - Always Visible */}
+          <div className="space-y-4">
+            <h4 className="font-medium">Additional Service Requirements</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-3 p-3 border border-border rounded-lg">
                 <Checkbox
                   id="needsReglue"
                   checked={serviceDetails.needsReglue}
                   onCheckedChange={(checked) => handleServiceDetailsChange('needsReglue', checked as boolean)}
                 />
-                <Label htmlFor="needsReglue">Does it need to be reglued?</Label>
+                <Label htmlFor="needsReglue" className="cursor-pointer">
+                  Does it need to be reglued?
+                </Label>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3 p-3 border border-border rounded-lg">
                 <Checkbox
                   id="needsPaint"
                   checked={serviceDetails.needsPaint}
                   onCheckedChange={(checked) => handleServiceDetailsChange('needsPaint', checked as boolean)}
                 />
-                <Label htmlFor="needsPaint">Shoe paint required?</Label>
+                <Label htmlFor="needsPaint" className="cursor-pointer">
+                  Shoe paint required?
+                </Label>
               </div>
+            </div>
+          </div>
+
+          {/* Additional Services - Conditional (keeping for backwards compatibility) */}
+          {(serviceDetails.serviceType || serviceDetails.basicCleaning === 'no') && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                The above additional services can be selected as needed
+              </p>
             </div>
           )}
 
@@ -279,15 +348,32 @@ export function TendDialog({ entry, onUpdateEntry, onClose }: TendDialogProps) {
             )}
           </div>
 
-          <div>
-            <Label htmlFor="billing">Billing (Peso)</Label>
-            <Input
-              id="billing"
-              type="number"
-              placeholder="Enter amount"
-              value={releaseData.billing}
-              onChange={(e) => setReleaseData(prev => ({ ...prev, billing: e.target.value }))}
-            />
+          {/* Billing Summary */}
+          <div className="p-4 bg-muted rounded-lg space-y-3">
+            <h4 className="font-medium">Billing Summary</h4>
+            
+            <div className="flex justify-between items-center">
+              <Label>Service Bill Total:</Label>
+              <span className="font-medium">₱{entry.billing || 0}</span>
+            </div>
+            
+            <div>
+              <Label htmlFor="additionalBilling">Additional Billing (Peso)</Label>
+              <Input
+                id="additionalBilling"
+                type="number"
+                placeholder="Enter additional amount (optional)"
+                value={releaseData.additionalBilling}
+                onChange={(e) => setReleaseData(prev => ({ ...prev, additionalBilling: e.target.value }))}
+              />
+            </div>
+            
+            <div className="border-t pt-2">
+              <div className="flex justify-between items-center font-medium">
+                <Label>Total Amount:</Label>
+                <span>₱{(entry.billing || 0) + (parseFloat(releaseData.additionalBilling) || 0)}</span>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -306,9 +392,46 @@ export function TendDialog({ entry, onUpdateEntry, onClose }: TendDialogProps) {
             </Select>
           </div>
 
-          <Button onClick={handleFinalSubmit} className="w-full">
-            Done
-          </Button>
+          {/* Delivery Address Verification */}
+          {releaseData.deliveryOption === 'delivery' && (
+            <div>
+              <Label htmlFor="deliveryAddress">Delivery Address *</Label>
+              <Input
+                id="deliveryAddress"
+                value={releaseData.deliveryAddress}
+                onChange={(e) => setReleaseData(prev => ({ ...prev, deliveryAddress: e.target.value }))}
+                placeholder="Verify and edit delivery address"
+                className={!releaseData.deliveryAddress.trim() ? 'border-destructive' : ''}
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Address from New Entry. Please verify and edit if needed.
+              </p>
+            </div>
+          )}
+
+          {/* Form Validation Messages */}
+          <div className="space-y-2">
+            {releaseData.afterPhotos.length === 0 && (
+              <p className="text-sm text-destructive">⚠️ Please upload at least one after photo</p>
+            )}
+            {!releaseData.deliveryOption && (
+              <p className="text-sm text-destructive">⚠️ Please select a delivery option</p>
+            )}
+            {releaseData.deliveryOption === 'delivery' && !releaseData.deliveryAddress.trim() && (
+              <p className="text-sm text-destructive">⚠️ Please enter a delivery address</p>
+            )}
+            
+            <Button 
+              onClick={handleFinalSubmit} 
+              className="w-full"
+              disabled={!canSubmit}
+            >
+              {!canSubmit 
+                ? (releaseData.afterPhotos.length === 0 ? 'Upload Photos First' : 
+                   !releaseData.deliveryOption ? 'Select Delivery Option' : 'Enter Delivery Address')
+                : 'Done'}
+            </Button>
+          </div>
         </div>
       )}
     </div>

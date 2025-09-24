@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
@@ -18,6 +19,7 @@ interface CompletedProps {
 export function Completed({ entries, onUpdateEntry }: CompletedProps) {
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [waiverPreviewOpen, setWaiverPreviewOpen] = useState(false);
   const [editData, setEditData] = useState<Partial<Entry>>({});
   const [sliderPosition, setSliderPosition] = useState(50);
   const [selectedBeforeIndex, setSelectedBeforeIndex] = useState(0);
@@ -31,7 +33,9 @@ export function Completed({ entries, onUpdateEntry }: CompletedProps) {
       customerEmail: entry.customerEmail,
       itemDescription: entry.itemDescription,
       billing: entry.billing,
+      additionalBilling: entry.additionalBilling,
       deliveryOption: entry.deliveryOption,
+      deliveryAddress: entry.deliveryAddress,
       markedAs: entry.markedAs,
     });
     setSliderPosition(50);
@@ -99,7 +103,7 @@ export function Completed({ entries, onUpdateEntry }: CompletedProps) {
                     <span className="font-medium">Email:</span> {entry.customerEmail || 'N/A'}
                   </div>
                   <div>
-                    <span className="font-medium">Billing:</span> ₱{entry.billing || 'N/A'}
+                    <span className="font-medium">Total:</span> ₱{((entry.billing || 0) + (entry.additionalBilling || 0))}
                   </div>
                   <div>
                     <span className="font-medium">Delivery:</span> {entry.deliveryOption || 'N/A'}
@@ -126,6 +130,9 @@ export function Completed({ entries, onUpdateEntry }: CompletedProps) {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Completed Entry Details - {selectedEntry?.customerName}</DialogTitle>
+            <DialogDescription>
+              View before/after comparison and edit details for this completed entry.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6">
@@ -247,6 +254,33 @@ export function Completed({ entries, onUpdateEntry }: CompletedProps) {
             {/* Editable Details */}
             <div className="space-y-4">
               <h4 className="font-medium">Edit Details</h4>
+              <div className="p-3 bg-muted rounded flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Signed Waiver</p>
+                  {selectedEntry?.waiverUrl ? (
+                    <p className="text-xs text-muted-foreground">Waiver uploaded</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No waiver uploaded</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setWaiverPreviewOpen(true)}
+                    disabled={!selectedEntry?.waiverUrl}
+                  >
+                    View Waiver
+                  </Button>
+                  <a
+                    href={selectedEntry?.waiverUrl || '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-disabled={!selectedEntry?.waiverUrl}
+                  >
+                    <Button disabled={!selectedEntry?.waiverUrl}>Open in new tab</Button>
+                  </a>
+                </div>
+              </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -285,16 +319,40 @@ export function Completed({ entries, onUpdateEntry }: CompletedProps) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="editBilling">Billing (Peso)</Label>
-                  <Input
-                    id="editBilling"
-                    type="number"
-                    value={editData.billing || ''}
-                    onChange={(e) => setEditData(prev => ({ ...prev, billing: parseFloat(e.target.value) }))}
-                  />
+              {/* Billing Section */}
+              <div className="p-4 bg-muted rounded-lg space-y-3">
+                <h4 className="font-medium">Billing Details</h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="editServiceBilling">Service Bill (Peso)</Label>
+                    <Input
+                      id="editServiceBilling"
+                      type="number"
+                      value={editData.billing || ''}
+                      onChange={(e) => setEditData(prev => ({ ...prev, billing: parseFloat(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editAdditionalBilling">Additional Billing (Peso)</Label>
+                    <Input
+                      id="editAdditionalBilling"
+                      type="number"
+                      value={editData.additionalBilling || ''}
+                      onChange={(e) => setEditData(prev => ({ ...prev, additionalBilling: parseFloat(e.target.value) || 0 }))}
+                    />
+                  </div>
                 </div>
+                
+                <div className="border-t pt-2">
+                  <div className="flex justify-between items-center font-medium">
+                    <Label>Total Amount:</Label>
+                    <span>₱{((editData.billing || 0) + (editData.additionalBilling || 0))}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Delivery Option</Label>
                   <Select 
@@ -310,6 +368,17 @@ export function Completed({ entries, onUpdateEntry }: CompletedProps) {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                {editData.deliveryOption === 'delivery' && (
+                  <div>
+                    <Label htmlFor="editDeliveryAddress">Delivery Address</Label>
+                    <Input
+                      id="editDeliveryAddress"
+                      value={editData.deliveryAddress || ''}
+                      onChange={(e) => setEditData(prev => ({ ...prev, deliveryAddress: e.target.value }))}
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -364,6 +433,23 @@ export function Completed({ entries, onUpdateEntry }: CompletedProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {selectedEntry?.waiverUrl && (
+        <Dialog open={waiverPreviewOpen} onOpenChange={setWaiverPreviewOpen}>
+          <DialogContent className="max-w-5xl w-[90vw] h-[85vh]">
+            <DialogHeader>
+              <DialogTitle>Waiver Preview</DialogTitle>
+            </DialogHeader>
+            <div className="h-full">
+              <iframe
+                src={selectedEntry.waiverUrl}
+                title="Waiver PDF"
+                className="w-full h-[70vh] border"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

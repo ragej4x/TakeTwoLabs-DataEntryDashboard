@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { toast } from 'sonner@2.0.3';
+import { getMe, updateMe } from '../api';
 
 interface ProfileDialogProps {
   open: boolean;
@@ -13,16 +14,43 @@ interface ProfileDialogProps {
 
 export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   const [profileData, setProfileData] = useState({
-    name: 'Admin User',
-    email: 'admin@taketwo.com',
-    phone: '+1 234 567 8900',
-    role: 'Administrator',
+    name: '',
+    email: '',
+    phone: '',
+    role: 'User',
     avatar: ''
   });
 
-  const handleSave = () => {
-    toast.success('Profile updated successfully');
-    onOpenChange(false);
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const me = await getMe();
+        setProfileData(prev => ({
+          ...prev,
+          name: [me.first_name, me.last_name].filter(Boolean).join(' ') || 'User',
+          email: me.email,
+          phone: me.phone || '',
+        }));
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load profile');
+      }
+    })();
+  }, [open]);
+
+  const handleSave = async () => {
+    try {
+      const parts = profileData.name.trim().split(/\s+/);
+      const first_name = parts[0] || '';
+      const last_name = parts.slice(1).join(' ') || '';
+      await updateMe({ first_name, last_name, phone: profileData.phone });
+      toast.success('Profile updated successfully');
+      onOpenChange(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update profile');
+    }
   };
 
   const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,6 +70,9 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Edit Profile</DialogTitle>
+          <DialogDescription>
+            Update your profile information and avatar.
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">

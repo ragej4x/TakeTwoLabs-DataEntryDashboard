@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { TendDialog } from './TendDialog';
 import type { Entry } from '../App';
 
@@ -72,6 +72,22 @@ export function Pending({ entries, onUpdateEntry }: PendingProps) {
                   </div>
                 </div>
 
+                {entry.waiverUrl && (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Waiver uploaded
+                  </div>
+                )}
+
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mt-2">
+                  <div>
+                    <span className="font-medium">Service Bill:</span> ₱{entry.billing || 0}
+                  </div>
+                  <div>
+                    <span className="font-medium">Delivery Address:</span> {entry.deliveryAddress || 'N/A'}
+                  </div>
+                </div>
+
                 {entry.beforePhotos && entry.beforePhotos.length > 0 && (
                   <div className="mt-2">
                     <p className="text-xs text-muted-foreground mb-1">Before Photos ({entry.beforePhotos.length})</p>
@@ -106,6 +122,9 @@ export function Pending({ entries, onUpdateEntry }: PendingProps) {
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Service Details - {selectedEntry?.customerName}</DialogTitle>
+            <DialogDescription>
+              Manage service details and complete the workflow for this entry.
+            </DialogDescription>
           </DialogHeader>
           {selectedEntry && (
             <TendDialog
@@ -116,6 +135,7 @@ export function Pending({ entries, onUpdateEntry }: PendingProps) {
           )}
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
