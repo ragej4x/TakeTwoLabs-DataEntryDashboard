@@ -40,8 +40,7 @@ export function Report({ entries }: ReportProps) {
 
   // Calculate summary statistics for filtered data
   const totalRevenue = filteredEntries
-    .filter(e => e.billing)
-    .reduce((sum, entry) => sum + (entry.billing || 0), 0);
+    .reduce((sum, entry) => sum + (entry.billing || 0) + (entry.additionalBilling || 0), 0);
 
   const exportToCSV = () => {
     const headers = [
@@ -66,7 +65,7 @@ export function Report({ entries }: ReportProps) {
       entry.itemDescription,
       entry.shoeService || '',
       entry.status,
-      entry.billing || '',
+      (entry.billing || 0) + (entry.additionalBilling || 0),
       entry.deliveryOption || '',
       entry.markedAs || '',
       entry.assignedTo || ''
@@ -213,8 +212,8 @@ export function Report({ entries }: ReportProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ₱{filteredEntries.filter(e => e.billing).length > 0 
-                ? Math.round(totalRevenue / filteredEntries.filter(e => e.billing).length) 
+              ₱{filteredEntries.length > 0 
+                ? Math.round(totalRevenue / filteredEntries.length) 
                 : 0}
             </div>
           </CardContent>
@@ -271,7 +270,7 @@ export function Report({ entries }: ReportProps) {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {entry.billing ? `₱${entry.billing}` : 'N/A'}
+                      ₱{((entry.billing || 0) + (entry.additionalBilling || 0)) || 'N/A'}
                     </TableCell>
                     <TableCell>
                       {entry.deliveryOption ? (

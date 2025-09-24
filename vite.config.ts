@@ -2,10 +2,13 @@
   import { defineConfig } from 'vite';
   import react from '@vitejs/plugin-react-swc';
   import path from 'path';
-  
+
   export default defineConfig({
     plugins: [react()],
-    base:process.env.VITE_BASE_PATH || "/TakeTwoLabs-DataEntryDashboard",
+    define: {
+      'process.env': {},
+    },
+    envPrefix: 'VITE_',
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {
@@ -52,7 +55,7 @@
     },
     build: {
       target: 'esnext',
-      outDir: 'dist',
+      outDir: 'build',
     },
     server: {
       port: 3000,
