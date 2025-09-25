@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
@@ -56,7 +56,6 @@ export function Completed({ entries, onUpdateEntry, onDeleteEntry }: CompletedPr
     if (selectedEntry) {
       onDeleteEntry(selectedEntry.id);
       setDialogOpen(false);
-      toast.success('Entry deleted successfully');
     }
   }
 
@@ -435,9 +434,25 @@ export function Completed({ entries, onUpdateEntry, onDeleteEntry }: CompletedPr
               <Button onClick={handleSaveChanges} className="flex-1">
                 Save Changes
               </Button>
-              <Button variant="outline" style={{ color: 'red', borderColor: 'red' }} onClick={handleDeleteEntry} className="flex-1">
-                Delete Entry
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" style={{ color: 'red', borderColor: 'red' }} className="flex-1">
+                    Delete Entry
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this entry?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will move the entry to Deleted. You can restore it later or permanently delete from Deleted.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteEntry}>Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
                 Close
               </Button>

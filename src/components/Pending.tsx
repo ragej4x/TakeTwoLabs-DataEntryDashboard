@@ -3,15 +3,18 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
+import { toast } from 'sonner';
 import { TendDialog } from './TendDialog';
 import type { Entry } from '../App';
 
 interface PendingProps {
   entries: Entry[];
   onUpdateEntry: (id: string, updates: Partial<Entry>) => void;
+  onDeleteEntry?: (id: string) => void;
 }
 
-export function Pending({ entries, onUpdateEntry }: PendingProps) {
+export function Pending({ entries, onUpdateEntry, onDeleteEntry }: PendingProps) {
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -113,6 +116,25 @@ export function Pending({ entries, onUpdateEntry }: PendingProps) {
               <Button onClick={() => handleTend(entry)}>
                 Tend
               </Button>
+              {onDeleteEntry && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="ml-2">Delete</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Entry</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete this entry? You can restore it later from Deleted.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => onDeleteEntry(entry.id)}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           </Card>
         ))}

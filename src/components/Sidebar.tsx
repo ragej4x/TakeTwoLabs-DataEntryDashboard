@@ -7,14 +7,15 @@ import {
   Plus, 
   Clock, 
   CheckCircle, 
-  Archive, 
+  Archive,
+  Trash2,
   BarChart3, 
   FileText 
 } from 'lucide-react';
 
 interface SidebarProps {
   activeView: string;
-  onViewChange: (view: string) => void;
+  onViewChange: (view: string) => void | undefined;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -25,6 +26,7 @@ export function Sidebar({ activeView, onViewChange, collapsed, onToggleCollapse 
     { id: 'pending', label: 'Pending', icon: Clock },
     { id: 'substantial-completion', label: 'Substantial Completion', icon: CheckCircle },
     { id: 'completed', label: 'Completed', icon: Archive },
+    { id: 'deleted', label: 'Deleted', icon: Trash2 },
     { id: 'analytics', label: 'Analysis', icon: BarChart3 },
     { id: 'report', label: 'Report', icon: FileText },
   ];

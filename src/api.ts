@@ -1,4 +1,5 @@
 export const API_URL = "https://taketwo-backend.vercel.app";
+
 let authToken: string | null = null;
 
 import { supabase } from './supabase';
@@ -92,7 +93,51 @@ async function handleResponse<T>(res: Response): Promise<T> {
     const text = await res.text();
     throw new Error(text || `HTTP ${res.status}`);
   }
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    throw new Error(text || 'Unexpected non-JSON response');
+  }
   return (await res.json()) as T;
+}
+
+export async function listDeletedEntries(): Promise<EntryDTO[]> {
+  const res = await request(`${API_URL}/entries/deleted`, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+  });
+  return handleResponse<EntryDTO[]>(res);
+}
+
+export async function restoreEntry(entryId: string): Promise<void> {
+  const response = await request(`${API_URL}/entries/${entryId}/restore`, {
+    method: 'POST',
+    headers: authToken ? {
+      'Authorization': `Bearer ${authToken}`,
+    } : {},
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to restore entry');
+  }
+}
+
+export async function permanentDeleteEntry(entryId: string): Promise<void> {
+  // Try primary route
+  let response = await request(`${API_URL}/entries/${entryId}/permanent`, {
+    method: 'DELETE',
+    headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+  });
+  if (response.status === 404) {
+    // Fallback route
+    response = await request(`${API_URL}/entries/permanent/${entryId}`, {
+      method: 'DELETE',
+      headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+    });
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Failed to permanently delete entry');
+  }
 }
 
 export async function listEntries(): Promise<EntryDTO[]> {

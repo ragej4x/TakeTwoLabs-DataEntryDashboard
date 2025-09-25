@@ -7,13 +7,14 @@ import { NewEntry } from './components/NewEntry';
 import { Pending } from './components/Pending';
 import { SubstantialCompletion } from './components/SubstantialCompletion';
 import { Completed } from './components/Completed';
+import { Deleted } from './components/Deleted';
 import { Analytics } from './components/Analytics';
 import { Report } from './components/Report';
 import { ProfileDialog } from './components/ProfileDialog';
 import { Auth } from './components/Auth';
-import { toast } from 'sonner@2.0.3';
-import { listEntries, createEntry, updateEntryApi, deleteEntry, type EntryDTO, type EntryCreateDTO, setAuthToken, onGlobalLoadingChange } from './api';
-import { Toaster } from 'sonner@2.0.3';
+import { toast } from 'sonner';
+import { listEntries, createEntry, updateEntryApi, deleteEntry, listDeletedEntries, restoreEntry, permanentDeleteEntry, type EntryDTO, type EntryCreateDTO, setAuthToken, onGlobalLoadingChange } from './api';
+import { Toaster } from 'sonner';
 import { LoadingOverlay } from './components/ui/loading-overlay';
 
 export type Entry = {
@@ -51,27 +52,132 @@ export type Entry = {
   updatedAt: Date;
 };
 
-export default function App() {
+type ViewType = 'new-entry' | 'pending' | 'substantial-completion' | 'completed' | 'analytics' | 'report' | 'deleted';
+
+const mapEntry = (e: EntryDTO): Entry => ({
+  id: e.id,
+  customerName: e.customerName,
+  customerPhone: e.customerPhone,
+  customerEmail: e.customerEmail,
+  deliveryAddress: e.deliveryAddress,
+  itemDescription: e.itemDescription,
+  shoeCondition: e.shoeCondition,
+  shoeService: e.shoeService,
+  waiverSigned: e.waiverSigned,
+  waiverUrl: e.waiverUrl,
+  waiverPdf: null,
+  beforePhotos: e.beforePhotos,
+  assignedTo: e.assignedTo,
+  needsReglue: e.needsReglue,
+  needsPaint: e.needsPaint,
+  status: (e.status as Entry['status']) ?? 'pending',
+  serviceDetails: e.serviceDetails,
+  afterPhotos: e.afterPhotos,
+  billing: e.billing,
+  additionalBilling: e.additionalBilling,
+  deliveryOption: e.deliveryOption as Entry['deliveryOption'],
+  markedAs: e.markedAs as Entry['markedAs'],
+  createdAt: new Date(e.createdAt),
+  updatedAt: new Date(e.updatedAt),
+});
+
+function App() {
+  // State
   const [isDark, setIsDark] = useState(false);
-  const [activeView, setActiveView] = useState('new-entry');
+  const [activeView, setActiveView] = useState<ViewType>('new-entry');
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [deletedEntries, setDeletedEntries] = useState<Entry[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
       return !!localStorage.getItem('tt_token');
     } catch {
       return false;
     }
   });
-  const [isLoading, setIsLoading] = useState(false);
 
+  // Data loading functions
+  const loadAllData = async () => {
+    setIsLoading(true);
+    try {
+      const data = await listEntries();
+      setEntries(data.map(mapEntry));
+    } catch (err) {
+      console.error('Failed to load entries', err);
+      toast.error('Failed to load entries');
+      localStorage.removeItem('tt_token');
+      setAuthToken(null);
+      setIsAuthenticated(false);
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const deletedData = await listDeletedEntries();
+      setDeletedEntries(deletedData.map(mapEntry));
+    } catch (err) {
+      console.warn('Failed to load deleted entries', err);
+      setDeletedEntries([]);
+      // do not log the user out just because deleted list failed
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Auth handlers
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+    toast.success('Logged in successfully');
+    const token = localStorage.getItem('tt_token');
+    if (token) {
+      setAuthToken(token);
+      loadAllData();
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    toast.success('Logged out successfully');
+    localStorage.removeItem('tt_token');
+    setAuthToken(null);
+    setEntries([]);
+    setDeletedEntries([]);
+  };
+
+  // UI handlers
+  const toggleTheme = () => setIsDark(prev => !prev);
+  const toggleSidebar = () => setSidebarCollapsed(prev => !prev);
+  const handleProfile = () => setProfileDialogOpen(true);
+
+  // Entry handlers
+  const handleRestoreEntry = async (id: string) => {
+    try {
+      await restoreEntry(id);
+      await loadAllData();
+      toast.success('Entry restored successfully');
+    } catch (err) {
+      console.error('Failed to restore entry:', err);
+      toast.error('Failed to restore entry');
+    }
+  };
+
+  
+
+  // Subscribe to global API loading state
   useEffect(() => {
-    // subscribe to global API loading state
     const unsubscribe = onGlobalLoadingChange((count) => setIsLoading(count > 0));
-    return () => unsubscribe();
+    return () => {
+      // Ensure cleanup returns void regardless of unsubscribe's return type
+      try {
+        (unsubscribe as unknown as () => void)();
+      } catch {
+        // no-op
+      }
+    };
   }, []);
 
+  // Theme effect
   useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add('dark');
@@ -80,34 +186,9 @@ export default function App() {
     }
   }, [isDark]);
 
-  const toggleTheme = () => {
-    setIsDark(!isDark);
-  };
+  
 
-  const toggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    toast.success('Logged out successfully');
-    // In a real app, you would clear auth tokens and redirect to login
-    localStorage.removeItem('tt_token');
-    setAuthToken(null);
-  };
-
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-    toast.success('Logged in successfully');
-    const token = localStorage.getItem('tt_token');
-    if (token) setAuthToken(token);
-  };
-
-  const handleProfile = () => {
-    setProfileDialogOpen(true);
-  };
-
-  // Initialize token and validate session on first load or when becoming authenticated
+  // Data loading effect
   useEffect(() => {
     const token = localStorage.getItem('tt_token');
     if (!token) {
@@ -115,49 +196,18 @@ export default function App() {
       return;
     }
     setAuthToken(token);
-    (async () => {
-      try {
-        setIsLoading(true);
-        const data = await listEntries();
-        const mapped: Entry[] = data.map((e: EntryDTO) => ({
-          id: e.id,
-          customerName: e.customerName,
-          customerPhone: e.customerPhone,
-          customerEmail: e.customerEmail,
-          deliveryAddress: e.deliveryAddress,
-          itemDescription: e.itemDescription,
-          shoeCondition: e.shoeCondition,
-          shoeService: e.shoeService,
-          waiverSigned: e.waiverSigned,
-          waiverUrl: e.waiverUrl,
-          waiverPdf: null,
-          beforePhotos: e.beforePhotos,
-          assignedTo: e.assignedTo,
-          needsReglue: e.needsReglue,
-          needsPaint: e.needsPaint,
-          status: (e.status as Entry['status']) ?? 'pending',
-          serviceDetails: e.serviceDetails,
-          afterPhotos: e.afterPhotos,
-          billing: e.billing,
-          additionalBilling: e.additionalBilling,
-          deliveryOption: e.deliveryOption as Entry['deliveryOption'],
-          markedAs: e.markedAs as Entry['markedAs'],
-          createdAt: new Date(e.createdAt),
-          updatedAt: new Date(e.updatedAt),
-        }));
-        setEntries(mapped);
-        setIsAuthenticated(true);
-      } catch (err) {
-        console.error(err);
-        // Token invalid or server error
-        toast.error('Session expired. Please log in again.');
-        localStorage.removeItem('tt_token');
-        setAuthToken(null);
-        setIsAuthenticated(false);
-      } finally { setIsLoading(false); }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+    loadAllData();
+  }, []);
+
+  
+
+  
+
+  
+
+  
+
+  
 
   const addEntry = async (entry: Omit<Entry, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -222,10 +272,21 @@ export default function App() {
     }
   };
 
+  
+
   const handleDeleteEntry = async (id: string) => {
     try {
+      // Find the entry before deleting so we can reflect it in Deleted list immediately
+      let deletedSnapshot: Entry | null = null;
+      setEntries(prev => {
+        const found = prev.find(e => e.id === id) || null;
+        deletedSnapshot = found ? { ...found } : null;
+        return prev.filter(entry => entry.id !== id);
+      });
       await deleteEntry(id);
-      setEntries(prev => prev.filter(entry => entry.id !== id));
+      if (deletedSnapshot) {
+        setDeletedEntries(prev => [deletedSnapshot as Entry, ...prev]);
+      }
       toast.success('Entry deleted successfully');
     } catch (err) {
       console.error(err);
@@ -238,7 +299,7 @@ export default function App() {
       case 'new-entry':
         return <NewEntry onAddEntry={addEntry} />;
       case 'pending':
-        return <Pending entries={entries.filter(e => e.status === 'pending')} onUpdateEntry={updateEntry} />;
+        return <Pending entries={entries.filter(e => e.status === 'pending')} onUpdateEntry={updateEntry} onDeleteEntry={handleDeleteEntry} />;
       case 'substantial-completion':
         return <SubstantialCompletion 
           entries={entries.filter(e => e.status === 'substantial-completion')} 
@@ -254,6 +315,17 @@ export default function App() {
         return <Analytics entries={entries} />;
       case 'report':
         return <Report entries={entries} />;
+      case 'deleted':
+        return <Deleted entries={deletedEntries} onRestoreEntry={handleRestoreEntry} onPermanentDelete={async (id: string) => {
+          try {
+            await permanentDeleteEntry(id);
+            setDeletedEntries(prev => prev.filter(e => e.id !== id));
+            toast.success('Entry permanently deleted');
+          } catch (err) {
+            console.error('Failed to permanently delete:', err);
+            toast.error('Failed to permanently delete');
+          }
+        }} />;
       default:
         return <NewEntry onAddEntry={addEntry} />;
     }
@@ -308,7 +380,7 @@ export default function App() {
         {/* Sidebar */}
         <Sidebar 
           activeView={activeView} 
-          onViewChange={setActiveView} 
+          onViewChange={(view) => setActiveView(view as ViewType)} 
           collapsed={sidebarCollapsed}
           onToggleCollapse={toggleSidebar}
         />
@@ -326,3 +398,5 @@ export default function App() {
     </div>
   );
 }
+
+export default App;
