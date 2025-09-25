@@ -44,9 +44,14 @@ export function Auth({ onLogin }: AuthProps) {
     e.preventDefault();
     if (isLoadingLogin) return;
     setIsLoadingLogin(true);
+    
+    // Show loading overlay during login
+    setIsRedirecting(true);
     try {
       const res = await loginApi(loginForm.email, loginForm.password);
       localStorage.setItem('tt_token', res.access_token);
+      // Add a small delay to show the loading animation
+      await new Promise(resolve => setTimeout(resolve, 1000));
       onLogin();
     } catch (err) {
       console.error(err);
@@ -62,6 +67,7 @@ export function Auth({ onLogin }: AuthProps) {
       toast.error(message);
     } finally {
       setIsLoadingLogin(false);
+      setIsRedirecting(false);
     }
   };
 
@@ -212,8 +218,8 @@ export function Auth({ onLogin }: AuthProps) {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full">
-                  Sign In
+                <Button type="submit" className="w-full" disabled={isLoadingLogin}>
+                  {isLoadingLogin ? 'Signing in...' : 'Sign In'}
                 </Button>
 
                 <div className="text-center">

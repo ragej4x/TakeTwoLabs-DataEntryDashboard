@@ -14,9 +14,10 @@ import type { Entry } from '../App';
 interface CompletedProps {
   entries: Entry[];
   onUpdateEntry: (id: string, updates: Partial<Entry>) => void;
+  onDeleteEntry: (id: string) => void;
 }
 
-export function Completed({ entries, onUpdateEntry }: CompletedProps) {
+export function Completed({ entries, onUpdateEntry, onDeleteEntry }: CompletedProps) {
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [waiverPreviewOpen, setWaiverPreviewOpen] = useState(false);
@@ -50,6 +51,14 @@ export function Completed({ entries, onUpdateEntry }: CompletedProps) {
       toast.success('Changes saved successfully');
     }
   };
+
+  function handleDeleteEntry() {
+    if (selectedEntry) {
+      onDeleteEntry(selectedEntry.id);
+      setDialogOpen(false);
+      toast.success('Entry deleted successfully');
+    }
+  }
 
   const getStatusBadgeVariant = (status?: string) => {
     switch (status) {
@@ -425,6 +434,9 @@ export function Completed({ entries, onUpdateEntry }: CompletedProps) {
             <div className="flex gap-2 pt-4">
               <Button onClick={handleSaveChanges} className="flex-1">
                 Save Changes
+              </Button>
+              <Button variant="outline" style={{ color: 'red', borderColor: 'red' }} onClick={handleDeleteEntry} className="flex-1">
+                Delete Entry
               </Button>
               <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
                 Close

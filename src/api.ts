@@ -29,6 +29,19 @@ export function setAuthToken(token: string | null) {
   authToken = token;
 }
 
+export async function deleteEntry(entryId: string): Promise<void> {
+  const response = await request(`${API_URL}/entries/${entryId}`, {
+    method: 'DELETE',
+    headers: authToken ? {
+      'Authorization': `Bearer ${authToken}`,
+    } : {},
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to delete entry');
+  }
+}
+
 export type ServiceDetailsDTO = {
   isShoeClean?: string;
   serviceType?: string;

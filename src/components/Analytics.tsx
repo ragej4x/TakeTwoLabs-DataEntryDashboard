@@ -9,16 +9,27 @@ interface AnalyticsProps {
 }
 
 export function Analytics({ entries }: AnalyticsProps) {
-  // Real data from TakeTwo and Gameville based on provided spreadsheet
-  const taketwoDailyAverage = 29800.00;
-  const gamevilleDailyAverage = 28800.00;
-  const totalDailyAverage = taketwoDailyAverage + gamevilleDailyAverage;
-
   // Calculate various metrics from live entries
   const totalEntries = entries.length;
   const pendingEntries = entries.filter(e => e.status === 'pending').length;
   const substantialCompletionEntries = entries.filter(e => e.status === 'substantial-completion').length;
   const completedEntries = entries.filter(e => e.status === 'completed').length;
+
+  // Calculate revenue by location
+  const takeTwoEntries = entries.filter(e => e.serviceDetails?.receivedBy === 'taketwo');
+  const gamevilleEntries = entries.filter(e => e.serviceDetails?.receivedBy === 'gameville');
+
+  const calculateDailyAverage = (locationEntries: Entry[]) => {
+    const totalRevenue = locationEntries.reduce((sum, entry) => 
+      sum + (entry.billing || 0) + (entry.additionalBilling || 0), 0
+    );
+    // Assuming 30 days per month for daily average
+    return totalRevenue / 30;
+  };
+
+  const taketwoDailyAverage = calculateDailyAverage(takeTwoEntries);
+  const gamevilleDailyAverage = calculateDailyAverage(gamevilleEntries);
+  const totalDailyAverage = taketwoDailyAverage + gamevilleDailyAverage;
 
   const totalRevenue = entries
     .reduce((sum, entry) => sum + (entry.billing || 0) + (entry.additionalBilling || 0), 0);
@@ -54,23 +65,55 @@ export function Analytics({ entries }: AnalyticsProps) {
       location: 'TakeTwo',
       dailyAverage: taketwoDailyAverage,
       monthlyProjected: taketwoDailyAverage * 30,
-      totalEntries: Math.floor(entries.filter(e => e.serviceDetails?.receivedBy === 'taketwo').length || totalEntries * 0.6),
+      totalEntries: takeTwoEntries.length,
+      totalRevenue: takeTwoEntries.reduce((sum, entry) => 
+        sum + (entry.billing || 0) + (entry.additionalBilling || 0), 0
+      ),
     },
     {
       location: 'Gameville', 
       dailyAverage: gamevilleDailyAverage,
       monthlyProjected: gamevilleDailyAverage * 30,
-      totalEntries: Math.floor(entries.filter(e => e.serviceDetails?.receivedBy === 'gameville').length || totalEntries * 0.4),
+      totalEntries: gamevilleEntries.length,
+      totalRevenue: gamevilleEntries.reduce((sum, entry) => 
+        sum + (entry.billing || 0) + (entry.additionalBilling || 0), 0
+      ),
     }
   ];
 
-  // Weekly trend data (sample data based on spreadsheet pattern)
-  const weeklyTrendData = [
-    { week: 'Week 1', taketwo: 208600, gameville: 201600 },
-    { week: 'Week 2', taketwo: 215400, gameville: 196800 },
-    { week: 'Week 3', taketwo: 223200, gameville: 208800 },
-    { week: 'Week 4', taketwo: 201600, gameville: 187200 },
-  ];
+  // Calculate weekly trend data
+  const calculateWeeklyTrends = () => {
+    const now = new Date();
+    const weeks = Array.from({ length: 4 }, (_, i) => {
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - ((i + 1) * 7));
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 7);
+      
+      const weekEntries = entries.filter(entry => {
+        const entryDate = new Date(entry.createdAt);
+        return entryDate >= weekStart && entryDate < weekEnd;
+      });
+
+      const takeTwoWeekRevenue = weekEntries
+        .filter(e => e.serviceDetails?.receivedBy === 'taketwo')
+        .reduce((sum, entry) => sum + (entry.billing || 0) + (entry.additionalBilling || 0), 0);
+
+      const gamevilleWeekRevenue = weekEntries
+        .filter(e => e.serviceDetails?.receivedBy === 'gameville')
+        .reduce((sum, entry) => sum + (entry.billing || 0) + (entry.additionalBilling || 0), 0);
+
+      return {
+        week: `Week ${4-i}`,
+        taketwo: takeTwoWeekRevenue,
+        gameville: gamevilleWeekRevenue
+      };
+    }).reverse();
+
+    return weeks;
+  };
+
+  const weeklyTrendData = calculateWeeklyTrends();
 
   // Delivery options
   const deliveryStats = entries
@@ -223,24 +266,33 @@ export function Analytics({ entries }: AnalyticsProps) {
         </Card>
       </div>
 
-      {/* Revenue Summary from Spreadsheet Data */}
+      {/* Revenue Summary */}
       <Card>
         <CardHeader>
-          <CardTitle>Revenue Summary (Based on Actual Data)</CardTitle>
+          <CardTitle>Revenue Summary</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">₱{taketwoDailyAverage.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-blue-600">₱{taketwoDailyAverage.toLocaleString(undefined, {maximumFractionDigits: 2})}</div>
               <p className="text-sm text-muted-foreground">TakeTwo Daily Average</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Total: ₱{locationData[0].totalRevenue.toLocaleString()}
+              </p>
             </div>
             <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-green-600">₱{gamevilleDailyAverage.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-green-600">₱{gamevilleDailyAverage.toLocaleString(undefined, {maximumFractionDigits: 2})}</div>
               <p className="text-sm text-muted-foreground">Gameville Daily Average</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Total: ₱{locationData[1].totalRevenue.toLocaleString()}
+              </p>
             </div>
             <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">₱{(taketwoDailyAverage + gamevilleDailyAverage).toLocaleString()}</div>
-              <p className="text-sm text-muted-foreground">Combined Daily Total</p>
+              <div className="text-2xl font-bold text-purple-600">₱{totalDailyAverage.toLocaleString(undefined, {maximumFractionDigits: 2})}</div>
+              <p className="text-sm text-muted-foreground">Combined Daily Average</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Total: ₱{(locationData[0].totalRevenue + locationData[1].totalRevenue).toLocaleString()}
+              </p>
             </div>
           </div>
         </CardContent>

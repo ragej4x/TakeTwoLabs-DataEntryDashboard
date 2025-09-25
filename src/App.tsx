@@ -12,7 +12,7 @@ import { Report } from './components/Report';
 import { ProfileDialog } from './components/ProfileDialog';
 import { Auth } from './components/Auth';
 import { toast } from 'sonner@2.0.3';
-import { listEntries, createEntry, updateEntryApi, type EntryDTO, type EntryCreateDTO, setAuthToken, onGlobalLoadingChange } from './api';
+import { listEntries, createEntry, updateEntryApi, deleteEntry, type EntryDTO, type EntryCreateDTO, setAuthToken, onGlobalLoadingChange } from './api';
 import { Toaster } from 'sonner@2.0.3';
 import { LoadingOverlay } from './components/ui/loading-overlay';
 
@@ -222,6 +222,17 @@ export default function App() {
     }
   };
 
+  const handleDeleteEntry = async (id: string) => {
+    try {
+      await deleteEntry(id);
+      setEntries(prev => prev.filter(entry => entry.id !== id));
+      toast.success('Entry deleted successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to delete entry');
+    }
+  };
+
   const renderContent = () => {
     switch (activeView) {
       case 'new-entry':
@@ -234,7 +245,11 @@ export default function App() {
           onUpdateEntry={updateEntry} 
         />;
       case 'completed':
-        return <Completed entries={entries.filter(e => e.status === 'completed')} onUpdateEntry={updateEntry} />;
+        return <Completed 
+          entries={entries.filter(e => e.status === 'completed')} 
+          onUpdateEntry={updateEntry}
+          onDeleteEntry={handleDeleteEntry}
+        />;
       case 'analytics':
         return <Analytics entries={entries} />;
       case 'report':
