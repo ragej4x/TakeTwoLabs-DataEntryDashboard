@@ -212,11 +212,11 @@ export function NewEntry({ onAddEntry }: NewEntryProps) {
   };
 
   return (
-    <Card className="max-w-2xl">
-      <CardHeader>
+    <Card className="flex-1 p-6 transition-all duration-300">
+      <CardHeader className="px-0">
         <CardTitle>New Entry</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-0">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Customer Details */}
           <div className="space-y-4">
