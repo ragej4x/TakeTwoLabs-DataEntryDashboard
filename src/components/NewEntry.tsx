@@ -90,19 +90,23 @@ export function NewEntry({ onAddEntry }: NewEntryProps) {
 
   const handleWaiverUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
+    if (file && (
+      file.type === 'application/pdf' ||
+      file.type === 'image/jpeg' ||
+      file.type === 'image/png'
+    )) {
       try {
         // store locally for UI, and upload to backend to get public URL
         setFormData(prev => ({ ...prev, waiverPdf: file, waiverSigned: true }));
         const { url } = await uploadWaiver(file);
         setFormData(prev => ({ ...prev, waiverPdf: file, waiverSigned: true, waiverUrl: url as any }));
-        toast.success('Signed waiver PDF uploaded successfully');
+        toast.success('Signed waiver uploaded successfully');
       } catch (e) {
         console.error(e);
         toast.error('Failed to upload waiver');
       }
     } else {
-      toast.error('Please upload a PDF file');
+      toast.error('Please upload a PDF, JPEG, or PNG file');
     }
   };
 
@@ -159,6 +163,11 @@ export function NewEntry({ onAddEntry }: NewEntryProps) {
     // Total amount must be greater than 0
     if (totalAmount <= 0) {
       errors.push('Total amount must be greater than 0');
+    }
+
+    // Require at least one before photo
+    if (!formData.beforePhotos || formData.beforePhotos.length === 0) {
+      errors.push('Please upload at least one before photo');
     }
 
     return errors;
@@ -394,7 +403,7 @@ export function NewEntry({ onAddEntry }: NewEntryProps) {
               <Input
                 id="waiverPdf"
                 type="file"
-                accept="application/pdf"
+            accept="application/pdf,image/jpeg,image/png,image/jpg,image/*"
                 onChange={handleWaiverUpload}
                 className="cursor-pointer mt-2"
               />
