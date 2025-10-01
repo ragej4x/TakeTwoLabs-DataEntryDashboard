@@ -17,10 +17,27 @@ interface PendingProps {
 export function Pending({ entries, onUpdateEntry, onDeleteEntry }: PendingProps) {
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editData, setEditData] = useState<Partial<Entry>>({});
 
   const handleTend = (entry: Entry) => {
     setSelectedEntry(entry);
     setDialogOpen(true);
+  };
+
+  const handleEdit = (entry: Entry) => {
+    setSelectedEntry(entry);
+    setEditData({
+      customerName: entry.customerName,
+      customerPhone: entry.customerPhone,
+      customerEmail: entry.customerEmail,
+      itemDescription: entry.itemDescription,
+      deliveryAddress: entry.deliveryAddress,
+      assignedTo: entry.assignedTo,
+      billing: entry.billing,
+      beforePhotos: entry.beforePhotos || [],
+    });
+    setEditOpen(true);
   };
 
   const handleUpdateEntry = (updates: Partial<Entry>) => {
@@ -29,6 +46,46 @@ export function Pending({ entries, onUpdateEntry, onDeleteEntry }: PendingProps)
       setDialogOpen(false);
       setSelectedEntry(null);
     }
+  };
+
+  const handleSaveEdit = () => {
+    if (selectedEntry) {
+      onUpdateEntry(selectedEntry.id, editData);
+      setEditOpen(false);
+      setSelectedEntry(null);
+      toast.success('Entry updated');
+    }
+  };
+
+  const handleEditPhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    const newPhotos: string[] = [];
+    let processed = 0;
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        if (result) newPhotos.push(result);
+        processed += 1;
+        if (processed === files.length) {
+          setEditData((prev) => ({
+            ...prev,
+            beforePhotos: [ ...(prev.beforePhotos || []), ...newPhotos ],
+          }));
+          toast.success('Photo(s) added');
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeEditPhoto = (index: number) => {
+    setEditData((prev) => ({
+      ...prev,
+      beforePhotos: (prev.beforePhotos || []).filter((_, i) => i !== index),
+    }));
+    toast.success('Photo removed');
   };
 
   if (entries.length === 0) {
@@ -113,13 +170,17 @@ export function Pending({ entries, onUpdateEntry, onDeleteEntry }: PendingProps)
                 )}
               </div>
               
-              <Button onClick={() => handleTend(entry)}>
-                Tend
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => handleTend(entry)}>
+                  Tend
+                </Button>
+                <Button variant="outline" onClick={() => handleEdit(entry)}>
+                  Edit
+                </Button>
               {onDeleteEntry && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="outline" className="ml-2">Delete</Button>
+                      <Button variant="outline" className="ml-2">Delete</Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
@@ -135,6 +196,7 @@ export function Pending({ entries, onUpdateEntry, onDeleteEntry }: PendingProps)
                   </AlertDialogContent>
                 </AlertDialog>
               )}
+              </div>
             </div>
           </Card>
         ))}
@@ -155,6 +217,127 @@ export function Pending({ entries, onUpdateEntry, onDeleteEntry }: PendingProps)
               onClose={() => setDialogOpen(false)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Entry - {selectedEntry?.customerName}</DialogTitle>
+            <DialogDescription>
+              Update customer and job details for this pending entry.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm" htmlFor="editCustomerName">Customer Name</label>
+                <input
+                  id="editCustomerName"
+                  className="mt-1 w-full border rounded px-3 py-2 bg-background"
+                  value={editData.customerName || ''}
+                  onChange={(e) => setEditData(prev => ({ ...prev, customerName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm" htmlFor="editCustomerPhone">Phone</label>
+                <input
+                  id="editCustomerPhone"
+                  className="mt-1 w-full border rounded px-3 py-2 bg-background"
+                  value={editData.customerPhone || ''}
+                  onChange={(e) => setEditData(prev => ({ ...prev, customerPhone: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm" htmlFor="editCustomerEmail">Email</label>
+              <input
+                id="editCustomerEmail"
+                className="mt-1 w-full border rounded px-3 py-2 bg-background"
+                value={editData.customerEmail || ''}
+                onChange={(e) => setEditData(prev => ({ ...prev, customerEmail: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-sm" htmlFor="editDeliveryAddress">Delivery Address</label>
+              <input
+                id="editDeliveryAddress"
+                className="mt-1 w-full border rounded px-3 py-2 bg-background"
+                value={editData.deliveryAddress || ''}
+                onChange={(e) => setEditData(prev => ({ ...prev, deliveryAddress: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-sm" htmlFor="editItemDescription">Item Description</label>
+              <textarea
+                id="editItemDescription"
+                className="mt-1 w-full border rounded px-3 py-2 bg-background"
+                value={editData.itemDescription || ''}
+                onChange={(e) => setEditData(prev => ({ ...prev, itemDescription: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-sm" htmlFor="editBeforePhotos">Before Photos</label>
+              <input
+                id="editBeforePhotos"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleEditPhotoUpload}
+                className="hidden"
+              />
+              <div className="mt-2">
+                <Button asChild>
+                  <label htmlFor="editBeforePhotos" className="cursor-pointer">Upload photos</label>
+                </Button>
+              </div>
+              {(editData.beforePhotos && editData.beforePhotos.length > 0) && (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground mb-1">{editData.beforePhotos.length} photo(s)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {editData.beforePhotos.map((photo, index) => (
+                      <div key={index} className="relative">
+                        <img src={photo} alt={`Before ${index + 1}`} className="w-16 h-16 object-cover rounded border" />
+                        <button
+                          type="button"
+                          className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-6 h-6 text-xs"
+                          onClick={() => removeEditPhoto(index)}
+                          aria-label="Remove photo"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm" htmlFor="editAssignedTo">Assigned To</label>
+                <input
+                  id="editAssignedTo"
+                  className="mt-1 w-full border rounded px-3 py-2 bg-background"
+                  value={editData.assignedTo || ''}
+                  onChange={(e) => setEditData(prev => ({ ...prev, assignedTo: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm" htmlFor="editBilling">Billing (₱)</label>
+                <input
+                  id="editBilling"
+                  type="number"
+                  className="mt-1 w-full border rounded px-3 py-2 bg-background"
+                  value={editData.billing ?? ''}
+                  onChange={(e) => setEditData(prev => ({ ...prev, billing: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleSaveEdit} className="flex-1">Save</Button>
+              <Button variant="outline" onClick={() => setEditOpen(false)} className="flex-1">Cancel</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
